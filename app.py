@@ -1,76 +1,94 @@
 import streamlit as st
-import time # Apenas para simular o tempo de carregamento
+import time
 
-# 1. Configuração inicial da página (deve ser o primeiro comando)
-st.set_page_config(page_title="Gerador de Treinos RAG", page_icon="🏋️‍♂️", layout="centered")
+import pandas as pd
 
-st.title("🏋️‍♂️ Prescrição Inteligente de Treinos")
+from basic import update_collection
+from basic import generate_workout
+
+# initial website configuration
+st.set_page_config(
+    page_title="Gerador de Treinos RAG", 
+    page_icon="🏋️‍♂️", 
+    layout="centered"
+    )
+
+st.title("Prescrição Inteligente de Treinos")
 st.write("Baseado em diretrizes clínicas e literatura atualizada.")
 
-# 2. Criando o formulário na barra lateral (Sidebar)
+# form on a sidebar
 with st.sidebar:
-    st.header("📋 Perfil do Paciente")
+    st.header("Perfil do aluno")
     
-    idade = st.number_input("Idade", min_value=12, max_value=100, value=45)
+    age = st.number_input("Idade", min_value=12, max_value=100, value=45)
     
-    objetivo = st.selectbox(
+    objective = st.selectbox(
         "Objetivo Principal", 
-        ["Fortalecimento", "Hipertrofia", "Emagrecimento", "Reabilitação"]
+        ["Fortalecimento", "Hipertrofia", "Emagrecimento", "Reabilitação"],
+        index=None,
+        placeholder="Insira o seu objetivo",
+        accept_new_options=True
     )
     
-    limitacoes = st.text_area(
+    limitations = st.text_area(
         "Limitações ou Observações", 
         placeholder="Ex: Dor lombar leve, condromalácia patelar...",
         height=100
     )
 
-# 3. O botão de ação na tela principal
+
+    st.divider()
+    if st.button("Sincronizar dados do banco", type="primary", use_container_width=True):
+        with st.spinner():
+            update_collection()
+            st.success("Concluído")
+
+
+# button to generate workout
 if st.button("Gerar Treino", type="primary", use_container_width=True):
-    
-    # Tratamento caso o usuário deixe a limitação em branco
-    if not limitacoes:
-        limitacoes = "Nenhuma limitação relatada."
-        
-    # O st.spinner cria aquela animação de "Carregando..." na tela
+
     with st.spinner("Buscando evidências no banco e montando o treino..."):
         
-        # =========================================================
-        # AQUI ENTRA A MÁGICA DO SEU BACKEND (O código que já fizemos)
-        # 1. Você usaria as variáveis 'objetivo' e 'limitacoes' para buscar no ChromaDB
-        # 2. Pegaria o resultado e enviaria para o Gemini gerar o JSON
-        # =========================================================
-        
-        time.sleep(2) # Pausa falsa só para simular o RAG pensando
-        
-        # Simulando o JSON que o Gemini te devolveria:
-        treino_gerado_pelo_gemini = [
-            {
-                "nome_exercicio": "Prancha Isométrica",
-                "series": 3,
-                "repeticoes": "30 a 45 segundos",
-                "justificativa": "Fortalecimento do core evitando sobrecarga discal."
-            },
-            {
-                "nome_exercicio": "Elevação Pélvica",
-                "series": 3,
-                "repeticoes": "12 a 15",
-                "justificativa": "Ativação de glúteos sem compressão axial da coluna lombar."
-            }
-        ]
+        time.sleep(2)
+        workout_generated = generate_workout(age, objective, limitations)
 
-    # 4. Renderizando o resultado na tela
     st.success("Treino gerado com sucesso!")
-    
+
+    exercises_list = workout_generated.get("treino", [])
+        
     st.subheader("Plano de Exercícios:")
-    
-    # O st.expander cria "sanfonas" clicáveis, deixando a interface limpa
-    for exercicio in treino_gerado_pelo_gemini:
-        with st.expander(f"💪 {exercicio['nome_exercicio']}", expanded=True):
-            # Organiza Séries e Repetições lado a lado em colunas
+
+    for exercise in exercises_list:
+        with st.expander(f"💪 {exercise['nome_exercicio']}", expanded=True):
+
             col1, col2 = st.columns(2)
             with col1:
-                st.write(f"**Séries:** {exercicio['series']}")
+                st.write(f"**Séries:** {exercise['series']}")
             with col2:
-                st.write(f"**Repetições:** {exercicio['repeticoes']}")
+                st.write(f"**Repetições:** {exercise['repeticoes']}")
                 
-            st.info(f"**Por que este exercício?** {exercicio['justificativa']}")
+            st.info(f"**Por que este exercício?** {exercise['justificativa']}")
+
+    st.divider()
+
+    st.subheader("Exportart dados")
+    table_workout = pd.DataFrame(exercises_list)
+
+    table_workout.rename(columns = {
+        "nome_exercicio": "Exercício",
+        "series": "Séries",
+        "repeticoes": "Repetições",
+        "justificativa": "Justificativa Clínica"
+    }, inplace=True)
+
+    st.dataframe(table_workout, use_container_width=True, hide_index=True)
+
+    csv = table_workout.to_csv(index=False, sep=";").encode('utf-8-sig')
+
+    st.download_button(
+        label="Baixar planilha de treino",
+        data=csv,
+        file_name=f"prescricao_{objective.lower()}.csv",
+        mime="text/csv",
+        type="primary"
+    )

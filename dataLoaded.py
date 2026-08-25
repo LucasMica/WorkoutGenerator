@@ -46,5 +46,3 @@ def process_data():
                     metadatas=[{"source": file}],
                     ids=[id]
                 )
-                    
-    return "All update"
