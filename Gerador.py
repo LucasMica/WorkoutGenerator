@@ -1,5 +1,4 @@
 import streamlit as st
-import time
 
 import pandas as pd
 
@@ -19,6 +18,12 @@ st.write("Baseado em diretrizes clínicas e literatura atualizada.")
 # form on a sidebar
 with st.sidebar:
     st.header("Perfil do aluno")
+
+    name = st.text_area(
+        "Nome completo",
+        placeholder="Seu nome",
+        height=50
+    )
     
     age = st.number_input("Idade", min_value=12, max_value=100, value=45)
     
@@ -49,7 +54,6 @@ if st.button("Gerar Treino", type="primary", use_container_width=True):
 
     with st.spinner("Buscando evidências no banco e montando o treino..."):
         
-        time.sleep(2)
         workout_generated = generate_workout(age, objective, limitations)
 
     st.success("Treino gerado com sucesso!")
