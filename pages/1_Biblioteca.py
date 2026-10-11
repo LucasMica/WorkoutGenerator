@@ -75,32 +75,33 @@ if show:
     else:
         # create an box for each file
         for file in fileList:
-            completed_path = os.path.join(destiny_folder, file)
+            if file.endswith(".pdf"):
+                completed_path = os.path.join(destiny_folder, file)
 
-            col_img, col_data = st.columns([1, 4])
-            
-            with col_img:
-                doc = pymupdf.open(completed_path)
-
-                first_page = doc.load_page(0)
-    
-                tumb = first_page.get_pixmap(matrix=pymupdf.Matrix(0.2, 0.2))
-
-                st.image(tumb.tobytes("png"), use_container_width=True)
+                col_img, col_data = st.columns([1, 4])
                 
-                doc.close()
-                
-            with col_data:
-                st.write(f"{file.removesuffix(".pdf")}")
-                
-                with st.popover("Deletar arquivo"):
-                    st.write(f"Tem certeza de que deseja excluir o arquivo {file}?")
+                with col_img:
+                    doc = pymupdf.open(completed_path)
 
-                    if st.button("Sim, excluir", type="primary", key=f"confirm_delete_{file}"):
-                        os.remove(completed_path)
-                        st.success("Documento removido do banco")
-                        time.sleep(2)
-                        st.rerun()
+                    first_page = doc.load_page(0)
+        
+                    tumb = first_page.get_pixmap(matrix=pymupdf.Matrix(0.2, 0.2))
+
+                    st.image(tumb.tobytes("png"), use_container_width=True)
                     
-            st.divider()
+                    doc.close()
+                    
+                with col_data:
+                    st.write(f"{file.removesuffix(".pdf")}")
+                    
+                    with st.popover("Deletar arquivo"):
+                        st.write(f"Tem certeza de que deseja excluir o arquivo {file}?")
+
+                        if st.button("Sim, excluir", type="primary", key=f"confirm_delete_{file}"):
+                            os.remove(completed_path)
+                            st.success("Documento removido do banco")
+                            time.sleep(2)
+                            st.rerun()
+                    
+                st.divider()
 

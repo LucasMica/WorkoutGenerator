@@ -56,6 +56,8 @@ if st.button("Gerar Treino", type="primary", use_container_width=True):
         
         workout_generated = generate_workout(age, objective, limitations)
 
+    st.write(workout_generated)
+
     st.success("Treino gerado com sucesso!")
 
     exercises_list = workout_generated.get("treino", [])
@@ -75,7 +77,7 @@ if st.button("Gerar Treino", type="primary", use_container_width=True):
 
     st.divider()
 
-    st.subheader("Exportart dados")
+    st.subheader("Exportar dados")
     table_workout = pd.DataFrame(exercises_list)
 
     table_workout.rename(columns = {

@@ -3,6 +3,28 @@ import chromadb
 from pypdf import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from ingest_exercises import load_exercises_chromadb
+
+def check_loaded_exercises(persistent_folder="./vector_database"):
+
+    client = chromadb.PersistentClient(path=persistent_folder)
+    
+    colections = [c.name for c in client.list_collections()]
+    
+    need_load = False
+
+    if "exercises" not in colections:
+        need_load = True
+    else:
+        # Se a coleção existe, checamos se ela possui pelo menos 1 documento
+        collection = client.get_collection(name="exercises")
+        if collection.count() == 0:
+            need_load = True
+
+    if need_load:
+        load_exercises_chromadb(persistent_folder=persistent_folder)
+
+
 def process_data():
     # create or get the path for the folder of the colection
     client_db = chromadb.PersistentClient(path="./vector_database")
