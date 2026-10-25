@@ -1,9 +1,10 @@
+import re
+
 import streamlit as st
 
 import pandas as pd
 
-from basic import update_collection
-from basic import generate_workout
+from basic import WorkoutGenerationError, update_collection, generate_workout
 
 # initial website configuration
 st.set_page_config(
@@ -26,6 +27,13 @@ with st.sidebar:
     )
     
     age = st.number_input("Idade", min_value=12, max_value=100, value=45)
+
+    sexo = st.selectbox(
+        "Sexo biológico",
+        ["Masculino", "Feminino"],
+        index=None,
+        placeholder="Selecione o sexo biológico"
+    )
     
     objective = st.selectbox(
         "Objetivo Principal", 
@@ -43,24 +51,42 @@ with st.sidebar:
 
 
     st.divider()
-    if st.button("Sincronizar dados do banco", type="primary", use_container_width=True):
+    if st.button("Sincronizar dados do banco", type="primary", width="stretch"):
         with st.spinner():
             update_collection()
             st.success("Concluído")
 
 
 # button to generate workout
-if st.button("Gerar Treino", type="primary", use_container_width=True):
+if st.button("Gerar Treino", type="primary", width="stretch"):
+    if not sexo:
+        st.error("Selecione o sexo biológico antes de gerar o treino.")
+        st.stop()
 
-    with st.spinner("Buscando evidências no banco e montando o treino..."):
-        
-        workout_generated = generate_workout(age, objective, limitations)
+    if not objective:
+        st.error("Selecione ou informe um objetivo antes de gerar o treino.")
+        st.stop()
+
+    try:
+        with st.spinner("Buscando evidências no banco e montando o treino..."):
+            workout_generated = generate_workout(
+                age=age,
+                objective=objective,
+                limitations=limitations,
+                sexo=sexo,
+            )
+    except WorkoutGenerationError as exc:
+        st.error(f"Não foi possível gerar o treino: {exc}")
+        st.stop()
 
     st.write(workout_generated)
 
-    st.success("Treino gerado com sucesso!")
-
     exercises_list = workout_generated.get("treino", [])
+    if not exercises_list:
+        st.info("Não foram encontrados exercícios compatíveis para gerar este treino.")
+        st.stop()
+
+    st.success("Treino gerado com sucesso!")
         
     st.subheader("Plano de Exercícios:")
 
@@ -80,22 +106,28 @@ if st.button("Gerar Treino", type="primary", use_container_width=True):
     st.subheader("Exportar dados")
     table_workout = pd.DataFrame(exercises_list)
 
-    table_workout.rename(columns = {
+    table_workout = table_workout.rename(columns={
         "nome_exercicio": "Exercício",
         "series": "Séries",
         "repeticoes": "Repetições",
         "instrucoes": "Instruções",
         "justificativa": "Justificativa"
-    }, inplace=True)
+    })
 
-    st.dataframe(table_workout, use_container_width=True, hide_index=True)
+    st.dataframe(table_workout, width="stretch", hide_index=True)
 
     csv = table_workout.to_csv(index=False, sep=";").encode('utf-8-sig')
+    filename_parts = (name.strip() or "paciente", f"{age}anos", sexo, objective.strip())
+    safe_filename_parts = [
+        re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", part).strip(" .") or "sem_nome"
+        for part in filename_parts
+    ]
+    filename = f"prescricao_{'_'.join(safe_filename_parts)}.csv"
 
     st.download_button(
         label="Baixar planilha de treino",
         data=csv,
-        file_name=f"prescricao_{objective.lower()}.csv",
+        file_name=filename,
         mime="text/csv",
         type="primary"
     )
