@@ -87,7 +87,7 @@ if show:
         
                     tumb = first_page.get_pixmap(matrix=pymupdf.Matrix(0.2, 0.2))
 
-                    st.image(tumb.tobytes("png"), use_container_width=True)
+                    st.image(tumb.tobytes("png"), width='content')
                     
                     doc.close()
                     

@@ -3,15 +3,22 @@ import json
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
-from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
-from google.genai.errors import ServerError
+from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception
+from google.genai.errors import ServerError, ClientError
 
 from dataLoaded import process_data, check_loaded_exercises
 
+# Função inteligente que evita erros de tipo verificando o texto da exceção
+def deve_tentar_novamente(exception):
+    erro_str = str(exception).upper()
+    # Captura tanto o 503 (Servidor instável) quanto o 429 (Limite de cota)
+    return any(codigo in erro_str for codigo in ["503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"])
+
 @retry(
-    wait=wait_random_exponential(min=2, max=10),
-    stop=stop_after_attempt(4),
-    retry=retry_if_exception_type(ServerError)
+    wait=wait_random_exponential(min=2, max=5),
+    stop=stop_after_attempt(5),
+    retry=retry_if_exception(deve_tentar_novamente),
+    reraise=True
 )
 def chamar_gemini_com_retry(client, model_name, prompt, config):
     return client.models.generate_content(
@@ -43,7 +50,7 @@ def generate_workout(age, objective, limitations):
         "limitacao": user_limitations,
     }
 
-    clinical_query = f"Regras, volume de treino, repetições e contraindicações para objetivo de {objective}, considerando limitação: {limitations}"
+    clinical_query = f"Regras, volume de treino, repetições, intruções e contraindicações para objetivo de {objective}, considerando limitação: {limitations}"
     exercises_query = f"Exercícios para {objective}, seguros para limitação: {limitations}"
 
     res_articles = collection_articles.query(query_texts=[clinical_query], n_results=3)
@@ -77,21 +84,52 @@ def generate_workout(age, objective, limitations):
                 "nome_exercicio": "string",
                 "series": "string ou numero",
                 "repeticoes": "string ou numero",
+                "instrucoes": "string (Explique a escolha baseada APENAS no documento)",
                 "justificativa": "string (Explique a escolha baseada APENAS no documento)"
             }}
         ]
     }}
     """
 
-    response = client.models.generate_content(
-        model="gemini-3.7-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            # Lower temperature, to incrise its analitcs researchs and prevent alucinations
-            temperature=0.2,
-        ),
+    # response = client.models.generate_content(
+    #     model="gemini-3.7-flash",
+    #     contents=prompt,
+    #     config=types.GenerateContentConfig(
+    #         response_mime_type="application/json",
+    #         # Lower temperature, to incrise its analitcs researchs and prevent alucinations
+    #         temperature=0.2,
+    #     ),
+    # )
+
+    # Configuração de comportamento do modelo
+    config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        temperature=0.2,
     )
+
+    # Lista de modelos reserva (fallback) caso o principal dê 503
+    modelos_fallback = [
+        "gemini-3.8-flash",
+        "gemini-3.6-flash"
+    ]
+
+    response = None
+    for modelo in modelos_fallback:
+        try:
+            print(f"Tentando gerar com o modelo: {modelo}...")
+            # Chamada protegida pelo decorador @retry
+            response = chamar_gemini_com_retry(client, modelo, prompt, config)
+            break  # Se deu certo, sai do loop de fallback
+        except ServerError:
+            print(f"Modelo {modelo} indisponível (503). Tentando o próximo...")
+            continue
+        except Exception as e:
+            print(f"Erro inesperado no modelo {modelo}: {e}")
+            break
+
+    if not response:
+        print("Todos os modelos falharam devido a pico de demanda.")
+        return {"treino": []}
 
     raw_text = response.text.strip()
 

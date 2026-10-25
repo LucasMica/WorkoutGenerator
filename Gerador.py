@@ -72,7 +72,7 @@ if st.button("Gerar Treino", type="primary", use_container_width=True):
                 st.write(f"**Séries:** {exercise['series']}")
             with col2:
                 st.write(f"**Repetições:** {exercise['repeticoes']}")
-                
+            st.write(f"**Instruções:** {exercise['instrucoes']}")
             st.info(f"**Por que este exercício?** {exercise['justificativa']}")
 
     st.divider()
@@ -84,7 +84,8 @@ if st.button("Gerar Treino", type="primary", use_container_width=True):
         "nome_exercicio": "Exercício",
         "series": "Séries",
         "repeticoes": "Repetições",
-        "justificativa": "Justificativa Clínica"
+        "instrucoes": "Instruções",
+        "justificativa": "Justificativa"
     }, inplace=True)
 
     st.dataframe(table_workout, use_container_width=True, hide_index=True)
